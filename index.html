@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code j4</title>
+    <script src="html5-qrcode.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            background: #B1D8B7;
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 20px 25px rgba(0, 0, 0, 0.25);
+            min-height: 90vh;
+        max-height: 90vh;
+        overflow-y: auto;
+            text-align: center;
+        }
+
+        .container h1 {
+            color: #333333;
+            margin-bottom: 5px;
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .col {
+            width: 100%;
+            max-width: 48%;
+            padding: 10px;
+        }
+
+        #my-qr-reader {
+            padding: 20px;
+            border: 1.5px solid #b2b2b2;
+            border-radius: 8px;
+        }
+
+        #result {
+            font-size: 18px;
+            color: #333;
+            background-color: #e7e7e7;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .result {
+            background-color: green;
+            color: #fff;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        table {
+            width: 100%;
+            margin-bottom: 20px;
+            border-collapse: collapse;
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            outline: none;
+            border-radius: 4px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #2F5233;
+            transition: 0.3s background-color;
+            margin: 5px;
+        }
+
+        button:hover {
+            background-color: #008000;
+        }
+
+        @media (max-width: 600px) {
+            .col {
+                max-width: 100%;
+            }
+        }
+
+        /* Style for the receipt printout */
+        #receipt {
+            display: none;
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+
+            #receipt, #receipt * {
+                visibility: visible;
+            }
+
+            #receipt {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                padding: 20px;
+                text-align: left;
+                border: none;
+                box-shadow: none;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 20px;
+            }
+
+            table, th, td {
+                border: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container"><br><br>
+        <h1 style="color: #4B5A20;">j4 QR-Scanner</h1>
+        <p style="margin-top: -10px;">for <strong style="color: #787D12;">Productss</strong></p>
+        <div class="row">
+            <div class="col">
+                <div id="my-qr-reader"></div>
+            </div>
+            <div class="col">
+                <h4>SCAN RESULT</h4>
+                <div id="result">Result Here</div>
+                <button onclick="printReceipt()">Print Receipt</button>
+                <button onclick="saveToSession()">Proceed</button> <!-- New Button -->
+                <h4>Total Price</h4>
+                <div id="total-price">0.00</div>
+            </div>
+        </div>
+
+        <!-- Form to display scanned products -->
+        <form id="scanned-products-form">
+            <table id="product-table">
+                <thead>
+                    <tr>
+                        <th>Product Name</th>
+                        <th>Store Name</th> <!-- Added Store Name column -->
+                        <th>Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Products will be appended here -->
+                </tbody>
+            </table>
+            <input type="text" id="total-price-input" readonly value="Total Price: ₱0.00">
+        </form>
+
+        <button onclick="location.reload();">Reset</button>
+    </div>
+
+    <!-- Receipt Section -->
+    <div id="receipt">
+        <h2>Order-j4</h2>
+        <table id="receipt-table">
+            <thead>
+                <tr>
+                    <th>Product Name</th>
+                    <th>Store Name</th> <!-- Added Store Name column -->
+                    <th>Price</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Products will be inserted here for printing -->
+            </tbody>
+        </table>
+        <h3>Total: ₱<span id="receipt-total-price">0.00</span></h3>
+    </div>
+
+    <script type="text/javascript">
+        let totalPrice = 0;
+        let isProcessing = false; // Variable to control scan delay
+        let scannedProducts = []; // Array to store scanned products
+
+        // Get the store_name from the URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const storeName = urlParams.get('store_name') || 'DefaultStoreName'; // Replace with the actual store name variable
+
+        function onScanSuccess(qrCodeMessage) {
+            if (isProcessing) return; // Ignore scans during the delay
+            isProcessing = true;
+
+            try {
+                const qrData = JSON.parse(qrCodeMessage);
+                const { product_name, price, store_name } = qrData; // Get store_name from QR data
+
+                totalPrice += parseFloat(price);
+                scannedProducts.push({ product_name, price, store_name }); // Include store_name in scanned products
+
+                // Add product to the table
+                const productTable = document.querySelector('#product-table tbody');
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = `<td>${product_name}</td><td>${store_name}</td><td>₱${parseFloat(price).toFixed(2)}</td>`; // Display store_name
+                productTable.appendChild(newRow);
+
+                // Update the total price
+                document.getElementById('total-price').innerText = `₱${totalPrice.toFixed(2)}`;
+                document.getElementById('total-price-input').value = `Total Price: ₱${totalPrice.toFixed(2)}`;
+
+                // Voice feedback
+                speak(`Scanned product: ${product_name}, Price: ₱${price}, Store: ${store_name}`);
+
+            } catch (error) {
+                document.getElementById('result').innerHTML = `<span class="result">Invalid QR Code Data</span>`;
+            }
+
+            // 3-second delay
+            setTimeout(() => {
+                isProcessing = false;
+            }, 3500);
+        }
+
+        function onScanError(errorMessage) {
+            // Handle scan error
+        }
+
+        var html5QrcodeScanner = new Html5QrcodeScanner(
+            "my-qr-reader", { fps: 10, qrbox: 250 }
+        );
+        html5QrcodeScanner.render(onScanSuccess, onScanError);
+
+        function printReceipt() {
+            // Copy the scanned products to the receipt section
+            const receiptTable = document.querySelector('#receipt-table tbody');
+            receiptTable.innerHTML = ''; // Clear previous content
+            scannedProducts.forEach(product => {
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = `<td>${product.product_name}</td><td>${product.store_name}</td><td>₱${parseFloat(product.price).toFixed(2)}</td>`; // Include store_name in the receipt
+                receiptTable.appendChild(newRow);
+            });
+
+            // Update the total price in the receipt
+            document.getElementById('receipt-total-price').innerText = totalPrice.toFixed(2);
+
+            // Show the receipt section
+            document.getElementById('receipt').style.display = 'block';
+
+            // Trigger the print
+            window.print();
+
+            // Hide the receipt section after printing
+            document.getElementById('receipt').style.display = 'none';
+        }
+
+function saveToSession() {
+    if (scannedProducts.length === 0) {
+        alert('No products to save.');
+        return;
+    }
+
+    const productData = scannedProducts.map((product, index) => {
+        return `product_name[${index}]=${encodeURIComponent(product.product_name)}&store_name[${index}]=${encodeURIComponent(product.store_name)}&price[${index}]=${encodeURIComponent(product.price)}`;
+    }).join('&');
+
+
+    // Redirect with the product data as URL parameters
+    window.location.href = `http://192.168.43.26:8000/teller_Addcart?${productData}`;
+}
+
+
+
+
+        function speak(text) {
+            const speech = new SpeechSynthesisUtterance(text);
+            window.speechSynthesis.speak(speech);
+        }
+    </script>
+</body>
+</html>
